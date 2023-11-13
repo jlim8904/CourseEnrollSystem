@@ -1,0 +1,20 @@
+{% extends "CourseSystem.html" %}
+{% block title %}Status Message{% endblock title %}
+
+{% block content %}
+{% for message,redirect,submit in status %}
+<div>{{message}}</div>
+<div>
+    <form method="post" action="/{{redirect}}"style="text-align:center">
+        <input type="submit" value="{{submit}}">
+    </form>
+</div>
+{% endfor %}
+{% if home %}
+<div>
+    <form method="post" action="/{{home}}"style="text-align:center">
+        <input type="submit" value="首頁">
+    </form>
+</div>
+{% endif %}
+{% endblock content %} 

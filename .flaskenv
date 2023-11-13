@@ -1,0 +1,2 @@
+FLASK_APP=Course System.py
+FLASK_DEBUG=1
