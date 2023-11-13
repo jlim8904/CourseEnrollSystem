@@ -1,0 +1,16 @@
+{% extends "CourseSystem.html" %}
+{% block title %}登入{% endblock title %}
+{% block content %}
+<div class="Login">
+  <h2>登入</h2><br><br><br>
+  <form method="post" action="/home">
+
+    學號：<input name="studentid">
+    <br><br>
+    密碼：<input type="password" name="password">
+    <div class="loginButton">
+      <input type="submit" value="登入">
+    </div>
+  </form>
+  </div>
+{% endblock content %} 

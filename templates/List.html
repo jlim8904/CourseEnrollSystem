@@ -1,0 +1,48 @@
+{% extends "CourseSystem.html" %}
+{% block title %}可選課表{% endblock title %}
+
+{% block content %}
+        <table>
+            <tr>
+                <th>關注</th>
+                <th>選課代碼</th>  
+                <th>課程編碼</th>
+                <th>課程名稱</th>
+                <th>學分</th>
+                <th>必選修</th>
+                <th>開課班級</th>
+                <th>修課人數</th>
+                <th>課程名額</th>
+            </tr>
+
+            {% for (CourseID,CourseCode,CourseName,DepartmentName,Credits,CreditType,CurrentAmount,TotalAmount) in course %}
+              <tr>
+                <form method="post" action="/follow_course">
+                  <td>
+                      <input type="hidden" name="courseid" value="{{CourseID}}">
+                      <input type="submit" value="關注">
+                  </td>
+                  <td>{{CourseID}}</td>
+                  <td>{{CourseCode}}</td>
+                  <td>{{CourseName}}</td>
+                  <td>{{Credits}}</td>
+                  <td>{{CreditType}}</td>
+                  <td>{{DepartmentName}}</td>
+                  <td id="Curr{{CourseID}}">{{CurrentAmount}}</td>
+                  <td id="TT{{CourseID}}">{{TotalAmount}}</td>
+                  {% if CurrentAmount >= TotalAmount %}
+                    <script>
+                      document.getElementById("Curr{{CourseID}}").style.color = "#DE3163";
+                      document.getElementById("TT{{CourseID}}").style.color = "#DE3163";
+                    </script>
+                  {% endif %}
+                </form>
+              </tr>
+            {% endfor %}
+        </table>
+        <div>
+            <form method="post" action="/home" style="text-align: center;margin:100px">
+                <input type="submit" value="返回">
+            </form>
+        </div>
+{% endblock content %}

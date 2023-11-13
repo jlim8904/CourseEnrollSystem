@@ -1,0 +1,49 @@
+{% extends "CourseSystem.html" %}
+{% block title %}已關注課表{% endblock title %}
+
+{% block content %}
+        <table>
+            <tr>
+                <th>加選</th>
+                <th>選課代碼</th>  
+                <th>課程編碼</th>
+                <th>課程名稱</th>
+                <th>學分</th>
+                <th>必選修</th>
+                <th>開課班級</th>
+                <th>修課人數</th>
+                <th>課程名額</th>
+                <th>取消關注</th>
+            </tr>
+
+            {% for (CourseID,CourseCode,CourseName,DepartmentName,Credits,CreditType,CurrentAmount,TotalAmount) in course %}
+              <tr>
+                <form method="post" action="/add">
+                  <td>
+                      <input type="hidden" name="courseid" value="{{CourseID}}">
+                      <input type="submit" value="加選">
+                  </td>
+                </form>
+                  <td>{{CourseID}}</td>
+                  <td>{{CourseCode}}</td>
+                  <td>{{CourseName}}</td>
+                  <td>{{Credits}}</td>
+                  <td>{{CreditType}}</td>
+                  <td>{{DepartmentName}}</td>
+                  <td>{{CurrentAmount}}</td>
+                  <td>{{TotalAmount}}</td>
+                <form method="post" action="/cancel_follow">
+                  <td>
+                      <input type="hidden" name="courseid" value="{{CourseID}}">
+                      <input type="submit" value="取消關注">
+                  </td>
+                </form>
+              </tr>
+            {% endfor %}
+        </table>
+        <div>
+            <form method="post" action="/home" style="margin: 90px;px;text-align: center;">
+                <input type="submit" value="返回">
+            </form>
+        </div>
+{% endblock content %}

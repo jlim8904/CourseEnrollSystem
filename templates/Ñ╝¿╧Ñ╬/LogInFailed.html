@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      
+        <!-- 提供 ico 檔案 -->
+        <link rel="icon" href="{{ url_for('static', filename='img/alpaca_logo.ico') }}">
+      
+        <!-- 引入 cdn CSS -->
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans+TC&display=swap">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/all.css">  
+      
+        <!-- 引入我們自己的 CSS -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+      
+        <!-- 直接定義 CSS -->
+        <style> body {font-family: 'Noto Sans TC', sans-serif;}</style>
+      
+        <!-- 可供更改的部分 -->
+        <title>{% block title %}{% endblock %}</title>
+      
+    </head>
+      <header>
+        <nav class="navbar navbar-expand-lg navbar-light bg-info">
+            <a class="navbar-brand" style="color: #FFF">選課系統</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            </button>
+        </nav>
+        </header>
+        <body>
+            <h1>帳號或密碼錯誤</h1>
+        </body>
+    </html>

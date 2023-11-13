@@ -1,0 +1,122 @@
+{% extends "CourseSystem.html" %}
+{% block title %}我的課表{% endblock title %}
+
+{% block content %}
+    <table style="width:100%">
+        <tr>
+            <td>CourseID</td>
+            <td>TimeSlotID</td>
+            <td>Semester</td>
+            <td>Years</td>
+            <td>Building</td>
+            <td>RoomNo</td>
+        </tr>
+    {% for (CourseID,TimeSlotID,Semester,Years,Building,RoomNo) in section %}
+        <tr>
+            <td>{{CourseID}}</td>
+            <td>{{TimeSlotID}}</td>
+            <td>{{Semester}}</td>
+            <td>{{Years}}</td>
+            <td>{{Building}}</td>
+            <td>{{RoomNo}}</td>
+        </tr>
+    {% endfor %}
+    </table>
+{% endblock content %} 
+<!--
+<form>
+            <p>搜尋 <input placeholder="選課代碼" type="text" name="欄位名稱"></p>
+            <input type="button" value="加選">
+            <input type="button" value="退選">
+    </form>
+        <table style="width:100%">
+            <tbody><tr>
+                <td> </td>
+                <td>星期一</td>
+                <td>星期二</td>
+                <td>星期三</td>
+                <td>星期四</td>
+                <td>星期五</td>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td></td>
+                <td> </td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td> </td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td> </td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td> </td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td> </td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td> </td>
+                <td> </td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td></td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td></td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+                <td> </td>
+            </tr>
+        </tbody></table>
+    -->

@@ -1,0 +1,85 @@
+{% extends "CourseSystem.html" %}
+{% block title %}主頁{% endblock title %}
+{% block navbar%}
+<div style="width:100%">
+<a class="navbar-brand" style="color: #FFF">
+<form method="post" action="/course_list" >
+    <input class="bg-info" type="submit" value="可選課程" style="color: #FFF; border: 0px #FFF">
+</form>
+</a>
+<a class="navbar-brand" style="color: #FFF">
+<form method="post" action="/follow_list">
+    <input class="bg-info" type="submit" value="關注課程" style="color: #FFF; border: 0px #FFF">
+</form>
+</a>
+<a class="navbar-brand" style="color:#FFF; float:right">
+<form method="post" action="/logout">
+    <input class="bg-info" type="submit" value="登出" style="color: #FFF; border: 0px #FFF">
+</form>
+</a>
+</div>
+{% endblock navbar %}
+{% block content %}
+<h5>Hi, {{studentName}}</h5>
+<div class="choose">
+    <br>
+    已選學分：{{sum_Credits}}
+    <br>
+    <form method="post" action="/add" >
+        <br>
+        課程代碼：<input name="courseid">
+        <input type="submit" value="加選">
+    </form>
+    <br>
+    <form method="post" action="/drop" >
+        課程代碼：<input name="courseid">
+        <input type="submit" value="退選">
+    </form>
+ 
+
+
+</div>
+<div align="center" style="margin-top:50px">
+    <table style="width:60%">
+        <tr style='text-align:center'>
+            <th></th>
+            <th style="width:16%">星期一</th>
+            <th style="width:16%">星期二</th>
+            <th style="width:16%">星期三</th>
+            <th style="width:16%">星期四</th>
+            <th style="width:16%">星期五</th>
+        </tr>
+        {% set week = ['t','a','b','c','d','e'] %}
+        {% for i in range (1,15) %}
+            <tr>
+            {% for j in range (6) %}
+                <td id="{{week[j]}}{{i}}"></td>
+            {% endfor %}
+            </tr>
+        {% endfor %}
+        <script>
+        {% for i in range (1,15) %}
+            document.getElementById("t{{i}}").innerHTML = "<div style='text-align:center;'>{{i}}<br><p>{{i+7}}:10 ~ {{i+8}}:00</p></div>";
+        {% endfor %}
+        {% for CourseID,CourseName,TimeSlotID,Building,RoomNo in section %}
+            document.getElementById("{{TimeSlotID}}").innerHTML += "<div style='text-align:center;'>{{CourseName}}<br>{{CourseID}}</div>";
+            {% if Building %}
+                document.getElementById("{{TimeSlotID}}").innerHTML += "<p style='text-align:center;'>{{Building}}{{RoomNo}}</p>";
+            {% endif %}
+        {% endfor %}
+        {% for CourseID,CourseName,TimeSlotID,Building,RoomNo in follows %}
+            document.getElementById("{{TimeSlotID}}").innerHTML += "<br><div style='text-align:center;'>{{CourseName}}<br>{{CourseID}}</div>";
+            {% if Building %}
+                document.getElementById("{{TimeSlotID}}").innerHTML += "<p style='text-align:center;'>{{Building}}{{RoomNo}}</p>";
+            {% endif %}
+            document.getElementById("{{TimeSlotID}}").innerHTML += "<p style='text-align:center;color:blue'>#關注課程#</p>";
+            {% for S_CourseID,S_CourseName,S_TimeSlotID,S_Building,S_RoomNo in section %}
+                {% if TimeSlotID == S_TimeSlotID and CourseID != S_CourseID %}
+                    document.getElementById("{{TimeSlotID}}").innerHTML += "<p style='color:red'>#關注課程已衝堂#</p>";
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+        </script>
+    </table>
+</div>
+{% endblock content %} 

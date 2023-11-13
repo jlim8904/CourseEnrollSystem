@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+    <head>
+        <style>
+            table {
+              font-family: arial, sans-serif;
+              border-collapse: collapse;
+              width: 100%;
+            }
+            
+            td, th {
+              border: 1px solid #dddddd;
+              text-align: left;
+              padding: 8px;
+            }
+            
+            tr:nth-child(even) {
+              background-color: #dddddd;
+            }
+            .Login{
+              margin: 200px auto;
+              width: 450px; 
+              border-style: solid;
+              border-radius: 20px;
+              text-align: center;
+              padding: 80px;
+            }
+            .loginButton{
+              margin: 50px auto;
+            }
+            .choose{
+              text-align: center;
+            }
+            h5{
+              text-align: center;
+            }
+            </style>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      
+        <!-- 提供 ico 檔案 -->
+        <link rel="icon" href="{{ url_for('static', filename='img/alpaca_logo.ico') }}">
+      
+        <!-- 引入 cdn CSS -->
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans+TC&display=swap">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/all.css">  
+      
+        <!-- 引入我們自己的 CSS -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+      
+        <!-- 直接定義 CSS -->
+        <style> body {font-family: 'Noto Sans TC', sans-serif;}</style>
+      
+        <!-- 可供更改的部分 -->
+        <title>{% block title %}{% endblock title%}</title>
+        <script src="Schedule.js"></script>
+    </head>
+    <body>
+        <header>
+          <nav class="navbar navbar-expand-lg navbar-light bg-info">
+              <a class="navbar-brand" style="color: #FFF">
+                <form method="post" action="/home" >
+                    <input class="bg-info" type="submit" value="選課系統" style="color: #FFF; border: 0px #FFF">
+                </form>
+                {% block navbar %}{% endblock navbar%}
+              </a>
+          </nav>
+        </header>
+        {% block content %}
+        {% endblock content %}
+    </body>
+</html>

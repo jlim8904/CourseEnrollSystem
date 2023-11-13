@@ -1,0 +1,37 @@
+{% extends "CourseSystem.html" %}
+{% block title %}查詢結果{% endblock title %}
+
+{% block content %}
+        <table>
+            <tr>
+                <th>加退選</th>
+                <th>選課代碼</th>  
+                <th>課程編碼</th>
+                <th>課程名稱</th>
+                <th>學分</th>
+                <th>必選修</th>
+                <th>開課班級</th>
+                <th>修課人數</th>
+                <th>課程名額</th>
+            </tr>
+
+            {% for (CourseID,CourseCode,CourseName,DepartmentName,Credits,CreditType,CurrentAmount,TotalAmount) in course %}
+              <tr>
+                <td><input type="button" value="加選"><input type="button" value="退選"></td>
+                <td>{{CourseID}}</td>
+                <td>{{CourseCode}}</td>
+                <td>{{CourseName}}</td>
+                <td>{{Credits}}</td>
+                <td>{{CreditType}}</td>
+                <td>{{DepartmentName}}</td>
+                <td>{{CurrentAmount}}</td>
+                <td>{{TotalAmouont}}</td>
+              </tr>
+            {% endfor %}
+        </table>
+        <div>
+            <form method="post" action="/home" style="text-align:center">
+                <input type="submit" value="返回">
+            </form>
+        </div>
+{% endblock content %}
