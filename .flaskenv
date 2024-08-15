@@ -1,2 +1,2 @@
-FLASK_APP=Course System.py
+FLASK_APP=CourseSystem.py
 FLASK_DEBUG=1
