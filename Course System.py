@@ -1,5 +1,3 @@
-# just for test
-
 import os
 from flask import Flask, redirect, request, render_template, url_for, session
 from flask_bcrypt import Bcrypt
