@@ -43,7 +43,7 @@ def get_student_required_courses(departmentName, studentYear, classNo, years, se
     return cursor.fetchall()
 
 
-def take_course(studentID, courseID, timeSlotID, semester, years):
+def take_course_section(studentID, courseID, timeSlotID, semester, years):
     insert_query = """insert into Takes(StudentID,CourseID,TimeSlotID,Semester,Years,CreditType)
                     values('{}','{}','{}',{},{},'必修');
                     """.format(studentID, courseID, timeSlotID, semester, years)
@@ -84,6 +84,49 @@ def get_student_name(studentid):
     return result[0]
 
 
+def get_course_name(courseid):
+    query = "SELECT CourseName FROM Courses WHERE courseid = '{}'".format(courseid)
+    cursor.execute(query)
+    return cursor.fetchone()
+
+
+def get_course_credits(courseid):
+    query = "SELECT Credits FROM Courses WHERE CourseID = '{}';".format(courseid)
+    cursor.execute(query)
+    result = cursor.fetchone()
+    return result[0]
+
+
+def get_course_schedule(courseid, years, semester):
+    query = "SELECT TimeSlotID FROM Sections WHERE CourseID = '{}' and years={} and semester={}".format(courseid, years, semester)
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
+def get_course_max_quota(courseid, years, semester):
+    query = """SELECT MIN(Capacity) 
+            FROM classrooms INNER JOIN sections ON 
+            classrooms.Building = sections.Building AND classrooms.RoomNo = sections.RoomNo 
+            WHERE courseid = '{}' and years={} and semester={};
+            """.format(courseid, years, semester)
+    cursor.execute(query)
+    return cursor.fetchone()
+
+
+def get_course_current_takes(courseid, years, semester):
+    query = """SELECT COUNT(DISTINCT StudentID) 
+            FROM takes WHERE CourseID = '{}' and years={} and semester={};
+            """.format(courseid, years, semester)
+    cursor.execute(query)
+    return cursor.fetchone()
+
+
+def get_student_schedule(studentid, years, semester):
+    query = "SELECT TimeSlotID from takes WHERE studentid = '{}' and years={} and semester={}".format(studentid, years, semester)
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
 def fetch_followed_course(studentid, years, semester):
     query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
             FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
@@ -108,6 +151,62 @@ def fetch_selected_course(studentid, years, semester):
     return cursor.fetchall()
 
 
+def is_course_exist(courseid):
+    CourseID_query = "SELECT CourseID FROM Courses WHERE CourseID = '{}';".format(courseid)
+    cursor.execute(CourseID_query)
+    return cursor.fetchone() != None
+
+
+def is_course_duplicate(studentid, courseid):
+    query = """SELECT Coursename FROM Courses WHERE coursename IN 
+            (SELECT DISTINCT coursename from takes INNER JOIN Courses 
+            on takes.courseid = courses.courseid WHERE studentid = '{}')
+            """.format(studentid)
+    cursor.execute(query)
+    for course in cursor.fetchall():
+        # 檢查是否已選同名課程
+        if get_course_name(courseid) == course:
+            return True
+    return False
+
+
+def is_exceed_credits_limit(studentid, years, semester, courseid):
+    current_total_credits = get_total_selected_credits(studentid, years, semester)
+    return current_total_credits + get_course_credits(courseid) > 30
+
+
+def is_course_schedule_conflict(studentid, courseid, years, semester):
+    for schedule_timeslot in get_student_schedule(studentid, years, semester):
+        for course_timeslot in get_course_schedule(courseid, years, semester):
+            if schedule_timeslot == course_timeslot:
+                return True
+    return False
+
+
+def is_course_full(courseid, years, semester):
+    max_quota = get_course_max_quota(courseid, years, semester)
+    current_takes = get_course_current_takes(courseid, years, semester)
+    return current_takes >= max_quota
+
+
+def is_not_in_queue(studentid, courseid):
+    query = "Select * From CourseQueue Where StudentID = '{}' And CourseID = '{}';".format(studentid, courseid)
+    cursor.execute(query)
+    return cursor.fetchone() == None
+
+
+def add_to_queue(studentid, courseid):
+    if is_not_in_queue(studentid, courseid):
+        query = "Insert Into CourseQueue Values('{}','{}','{}');".format(studentid, courseid, datetime.now())
+        cursor.execute(query)
+        conn.commit()
+
+
+def unfollow_course(studentid, courseid):
+    query = "Delete From Follows Where StudentID = '{}' And CourseID = '{}';".format(studentid, courseid)
+    cursor.execute(query)
+    conn.commit()
+
 # 預選必修
 def preselect_required_courses():
     if verify_is_new_semester(semester, years):
@@ -116,7 +215,7 @@ def preselect_required_courses():
         # 根據每位學生的系所年紀班級，加入必修課程
         for StudentID, DepartmentName, ClassNo, StudentYear in students:
             for CourseID, TimeSlotID in get_student_required_courses(DepartmentName, StudentYear, ClassNo, years, semester):
-                take_course(StudentID, CourseID, TimeSlotID, semester, years)
+                take_course_section(StudentID, CourseID, TimeSlotID, semester, years)
 
 
 preselect_required_courses()
@@ -221,114 +320,32 @@ def add():
     courseid = request.form.get('courseid')
 
     # 檢查是否有這堂課
-    # 用courseID檢查有無此課
-    CourseID_query = "SELECT CourseID FROM Courses WHERE CourseID = '{}';".format(
-        courseid)
-    cursor.execute(CourseID_query)
-    if cursor.fetchone() == None:
+    if not is_course_exist(courseid):
         return render_template('ErrorMessage.html', status=(("找不到這堂課", "home", "返回"),))
 
-    # 檢查是否已選同名課程
-    # 找出該課程代碼的課程名稱
-    # 找出已選的課 判斷有沒有同名課程
-    query = "SELECT CourseName FROM Courses WHERE courseid = '{}'".format(
-        courseid)
-    cursor.execute(query)
-    course_name = cursor.fetchone()
     # 找出已選的課程名稱
-    # takes course合併找出修過課程的名稱
-    query = """SELECT Coursename FROM Courses WHERE coursename IN 
-            (SELECT DISTINCT coursename from takes INNER JOIN Courses 
-            on takes.courseid = courses.courseid WHERE studentid = '{}')
-            """.format(studentid)
-    cursor.execute(query)
-    for course in cursor.fetchall():
-        if course_name == course:
-            return render_template('ErrorMessage.html', status=(("不可加選與已選課程同名的課程", "home", "返回"),))
+    if is_course_duplicate(studentid, courseid):
+        return render_template('ErrorMessage.html', status=(("不可加選與已選課程同名的課程", "home", "返回"),))
 
-    # 檢查退選後是否超出30學分
-    # 抓取總學分
-    # 找出修課總學分
-    query = """SELECT SUM(Credits) FROM Courses WHERE CourseID in 
-            (SELECT DISTINCT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={});
-            """.format(studentid, years, semester)
-    cursor.execute(query)
-    sum_Credits = cursor.fetchone()
-    # 抓取加選課程學分
-    # 找出要加炫課的總學分
-    query = "SELECT Credits FROM Courses WHERE CourseID = '{}';".format(
-        courseid)
-    cursor.execute(query)
-    add_Credits = cursor.fetchone()
-    if sum_Credits[0] + add_Credits[0] > 30:
+    # 檢查加選後是否超出30學分
+    if is_exceed_credits_limit(studentid, years, semester, courseid):
         return render_template('ErrorMessage.html', status=(("不可超過30學分", "home", "返回"),))
 
     # 檢查是否衝堂
-    # 抓取該課程上課時間
-    # 查看選課的時間表
-    query = "SELECT TimeSlotID FROM Sections WHERE CourseID = '{}' and years={} and semester={}".format(
-        courseid, years, semester)
-    cursor.execute(query)
-    course_timeslot = cursor.fetchall()
-    # 抓取學生已選課表的上課時間
-    # 找出以選課課程的時段
-    query = "SELECT TimeSlotID from takes WHERE studentid = '{}' and years={} and semester={}".format(
-        studentid, years, semester)
-    cursor.execute(query)
-    for schedule_timeslot in cursor.fetchall():
-        for timeslot in course_timeslot:
-            if schedule_timeslot == timeslot:
-                return render_template('ErrorMessage.html', status=(("不可加選衝堂的課程", "home", "返回"),))
+    if is_course_schedule_conflict(studentid, courseid, years, semester):
+        return render_template('ErrorMessage.html', status=(("不可加選衝堂的課程", "home", "返回"),))
 
     # 檢查是否人數已滿
-    # 找出該課程最小教室
-    # 找出課程最小教室能容納多少人
-    query = """SELECT MIN(Capacity) 
-            FROM classrooms INNER JOIN sections ON 
-            classrooms.Building = sections.Building AND classrooms.RoomNo = sections.RoomNo 
-            WHERE courseid = '{}' and years={} and semester={};
-            """.format(courseid, years, semester)
-    cursor.execute(query)
-    min_capacity = cursor.fetchone()
-    # 找出修該課的學生總數
-    # 找出已修過這堂課的總數
-    query = """SELECT COUNT(DISTINCT StudentID) 
-            FROM takes WHERE CourseID = '{}' and years={} and semester={};
-            """.format(courseid, years, semester)
-    cursor.execute(query)
-    course_student = cursor.fetchone()
     # 若人數已滿，加入排隊列表
-    if course_student >= min_capacity:
-        # 檢查是否已加入排隊列表
-        query = "Select * From CourseQueue Where StudentID = '{}' And CourseID = '{}';".format(
-            studentid, courseid)
-        cursor.execute(query)
-        if cursor.fetchone() == None:
-            # 加入排隊列表
-            query = "Insert Into CourseQueue Values('{}','{}','{}');".format(
-                studentid, courseid, datetime.now())
-            cursor.execute(query)
-            conn.commit()
+    if is_course_full(courseid, years, semester):
+        add_to_queue(studentid, courseid)
         return render_template('ErrorMessage.html', status=(("人數已滿，已加入排隊列表", "home", "返回"),))
 
     # 加選課程
-    # 抓取所有的section到takes裡面
-    query = """SELECT TimeSlotID,Semester,Years FROM Sections
-            WHERE CourseID = '{}' and years={} and semester={}
-            """.format(courseid, years, semester)
-    cursor.execute(query)
-    for TimeSlotID, Semester, Years in cursor.fetchall():
-        insert_query = """insert into Takes(StudentID,CourseID,TimeSlotID,Semester,Years)
-                        values('{}','{}','{}',{},{});
-                        """.format(studentid, courseid, TimeSlotID, Semester, Years)
-        cursor.execute(insert_query)
-        conn.commit()
+    for TimeSlotID in get_course_schedule(courseid, years, semester):
+        take_course_section(studentid, courseid, TimeSlotID, semester, years)
 
-    courseid = request.form.get('courseid')
-    query = "Delete From Follows Where StudentID = '{}' And CourseID = '{}';".format(
-        studentid, courseid)
-    cursor.execute(query)
-    conn.commit()
+    unfollow_course(studentid, courseid)
     return render_template('ErrorMessage.html', status=(("加選成功", "home", "返回"),))
 
 
@@ -551,8 +568,5 @@ def cancel_follow():
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     courseid = request.form.get('courseid')
-    query = "Delete From Follows Where StudentID = '{}' And CourseID = '{}';".format(
-        studentid, courseid)
-    cursor.execute(query)
-    conn.commit()
+    unfollow_course(studentid, courseid)
     return render_template('ErrorMessage.html', status=(("課程已取消關注", "follow_list", "返回"),), home=('home'))
