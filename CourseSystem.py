@@ -42,6 +42,7 @@ def get_student_required_courses(departmentName, studentYear, classNo, years, se
     cursor.execute(query)
     return cursor.fetchall()
 
+
 def take_course(studentID, courseID, timeSlotID, semester, years):
     insert_query = """insert into Takes(StudentID,CourseID,TimeSlotID,Semester,Years,CreditType)
                     values('{}','{}','{}',{},{},'必修');
@@ -49,6 +50,18 @@ def take_course(studentID, courseID, timeSlotID, semester, years):
     cursor.execute(insert_query)
     conn.commit()
 
+
+def verify_student(studentid):
+    query = "Select StudentID From UserID Where StudentID = '{}';".format(studentid)
+    cursor.execute(query)
+    return cursor.fetchone() != None
+
+
+def verify_password(studentid, password):
+    query = "Select IDPassword From UserID Where StudentID = '{}';".format(studentid)
+    cursor.execute(query)
+    password_check = cursor.fetchone()
+    return bcrypt.check_password_hash(password, password_check[0])
 
 # 預選必修
 def preselect_required_courses():
@@ -74,17 +87,9 @@ def start():
 def login():
     if session.get('studentid') and session.get('password'):
         studentid = session.get('studentid')
-        query = "Select StudentID From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        studentid_check = cursor.fetchone()
-        if studentid_check == None:
+        if not verify_student(studentid):
             return render_template('ErrorMessage.html', status=(("學號錯誤!", "login", "重新登入"),))
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+        if not verify_password(studentid, session.get('password')):
             session['password'] = None
             return render_template('ErrorMessage.html', status=(("請重新登入!", "login", "重新登入"),))
         return redirect(url_for('home'))
