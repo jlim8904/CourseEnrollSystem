@@ -63,6 +63,51 @@ def verify_password(studentid, password):
     password_check = cursor.fetchone()
     return bcrypt.check_password_hash(password, password_check[0])
 
+
+def get_total_selected_credits(studentid, years, semester):
+    query = """SELECT SUM(Credits) FROM Courses WHERE CourseID in 
+            (SELECT DISTINCT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={});
+            """.format(studentid, years, semester)  # 抓取那個學生有修什麼課再加總
+    cursor.execute(query)
+    result = cursor.fetchone()
+
+    if result[0] == None:  # 如果完全沒有修會抓取的總值是NONE，要把它設為0
+        return 0
+
+    return int(result[0]) # 抓取的值設給total_credits
+
+
+def get_student_name(studentid):
+    query = "SELECT StudentName From Students Where StudentID = '{}';".format(studentid)  # 根據學號抓取學生名字
+    cursor.execute(query)
+    result = cursor.fetchone()
+    return result[0]
+
+
+def fetch_followed_course(studentid, years, semester):
+    query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
+            FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
+            From Sections Inner Join Courses On Sections.CourseID = Courses.CourseID) As Sections 
+            Inner Join TimeSlot On Sections.TimeSlotID = TimeSlot.TimeSlotID WHERE courseid in 
+            (SELECT CourseID FROM Follows WHERE StudentID = '{}')
+            and years={} and semester={} Order By Sections.TimeSlotID ASC;
+            """.format(studentid, years, semester)  # 先結合section and course再結合有在關注裡的courseID，抓取關注課程的時間表
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
+def fetch_selected_course(studentid, years, semester):
+    query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
+            FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
+            From Sections Inner Join Courses On Sections.CourseID = Courses.CourseID) As Sections 
+            Inner Join TimeSlot On Sections.TimeSlotID = TimeSlot.TimeSlotID WHERE courseid in 
+            (SELECT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={})
+            and years={} and semester={} Order By Sections.TimeSlotID ASC;
+            """.format(studentid, years, semester, years, semester)  # 合伴section and course,再結合該學生的takes,再抓出該學生修的課
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
 # 預選必修
 def preselect_required_courses():
     if not verify_new_semester(semester, years):
@@ -88,6 +133,7 @@ def login():
     if session.get('studentid') and session.get('password'):
         studentid = session.get('studentid')
         if not verify_student(studentid):
+            session['studentid'] = None
             return render_template('ErrorMessage.html', status=(("學號錯誤!", "login", "重新登入"),))
         if not verify_password(studentid, session.get('password')):
             session['password'] = None
@@ -111,82 +157,44 @@ def home():
         elif studentid == None:
             return redirect(url_for('login'))
 
-        query = "Select StudentID From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        studentid_check = cursor.fetchone()
-        if studentid_check == None:
-            return render_template('ErrorMessage.html', status=(("學號錯誤!", "login", "重新登入"),))
-
         # 檢查密碼
         password = request.form.get('password')
         if password == '':
             return render_template('ErrorMessage.html', status=(("請輸入密碼!", "login", "重新登入"),))
         elif password == None:
             return redirect(url_for('login'))
+
         # 密碼加密
         password = bcrypt.generate_password_hash(password=password)
         session['password'] = password
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+
+        if not verify_student(studentid):
+            session['studentid'] = None
+            return render_template('ErrorMessage.html', status=(("學號錯誤!", "login", "重新登入"),))
+        if not verify_password(studentid, session.get('password')):
             session['password'] = None
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
         session.permanent = True
+
     else:
         studentid = session.get('studentid')
-        query = "Select StudentID From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        studentid_check = cursor.fetchone()
-        if studentid_check == None:
+        if not verify_student(studentid):
             session['studentid'] = None
             return render_template('ErrorMessage.html', status=(("學號錯誤!", "login", "重新登入"),))
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+        if not verify_password(studentid, session.get('password')):
+            session['password'] = None
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     # 抓取已選總學分
-    query = """SELECT SUM(Credits) FROM Courses WHERE CourseID in 
-            (SELECT DISTINCT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={});
-            """.format(studentid, years, semester)  # 抓取那個學生有修什麼課再加總
-    cursor.execute(query)
-    sum_Credits = cursor.fetchone()  # 抓取的值設給sum_Credits
-    if sum_Credits[0] == None:  # 如果完全沒有修會抓取的總值是NONE，要把它設為0
-        sum_Credits = (0,)
-
+    total_credits = get_total_selected_credits(studentid, years, semester)
     # 抓取學生名字
-    query = """SELECT StudentName From Students Where StudentID = '{}';
-            """.format(studentid)  # 根據學號抓取學生名字
-    cursor.execute(query)
-    studentName = cursor.fetchone()
-
+    studentName = get_student_name(studentid)
     # 抓取已關注課程
-    query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
-            FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
-            From Sections Inner Join Courses On Sections.CourseID = Courses.CourseID) As Sections 
-            Inner Join TimeSlot On Sections.TimeSlotID = TimeSlot.TimeSlotID WHERE courseid in 
-            (SELECT CourseID FROM Follows WHERE StudentID = '{}')
-            and years={} and semester={} Order By Sections.TimeSlotID ASC;
-            """.format(studentid, years, semester)  # 先結合section and course再結合有在關注裡的courseID，抓取關注課程的時間表
-    cursor.execute(query)
-    follows = cursor.fetchall()
-
+    followed_course = fetch_followed_course(studentid, years, semester)
     # 抓取已選課程
-    query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
-            FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
-            From Sections Inner Join Courses On Sections.CourseID = Courses.CourseID) As Sections 
-            Inner Join TimeSlot On Sections.TimeSlotID = TimeSlot.TimeSlotID WHERE courseid in 
-            (SELECT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={})
-            and years={} and semester={} Order By Sections.TimeSlotID ASC;
-            """.format(studentid, years, semester, years, semester)  # 合伴section and course,再結合該學生的takes,再抓出該學生修的課
-    cursor.execute(query)
-    return render_template('home.html', studentName=studentName[0], sum_Credits=int(sum_Credits[0]), section=cursor.fetchall(), follows=follows)
+    selected_course = fetch_selected_course(studentid, years, semester)
+
+    return render_template('home.html', studentName=studentName, sum_Credits=total_credits, section=selected_course, follows=followed_course)
 
 
 # 登出頁面
