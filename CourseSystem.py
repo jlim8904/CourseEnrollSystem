@@ -18,11 +18,11 @@ semester = 2
 studentid = None
 
 
-def verify_new_semester(semester, years):
+def verify_is_new_semester(semester, years):
     query = "Select * From Takes Where Semester = {} And Years = {};".format(
         semester, years)
     cursor.execute(query)
-    return cursor.fetchall()
+    return not cursor.fetchall()
 
 
 def fetch_student_list(semester, years):
@@ -110,7 +110,7 @@ def fetch_selected_course(studentid, years, semester):
 
 # 預選必修
 def preselect_required_courses():
-    if not verify_new_semester(semester, years):
+    if verify_is_new_semester(semester, years):
         # 抓取學生資料
         students = fetch_student_list(semester, years)
         # 根據每位學生的系所年紀班級，加入必修課程
@@ -215,11 +215,7 @@ def add():
     else:
         global studentid
         studentid = session.get('studentid')
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+        if not verify_password(studentid, session.get('password')):
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     courseid = request.form.get('courseid')
@@ -344,11 +340,7 @@ def drop():
     else:
         global studentid
         studentid = session.get('studentid')
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+        if not verify_password(studentid, session.get('password')):
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     courseid = request.form.get('courseid')
@@ -482,11 +474,7 @@ def course_list():
     else:
         global studentid
         studentid = session.get('studentid')
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+        if not verify_password(studentid, session.get('password')):
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     query = """Select Current.CourseID, CourseCode, CourseName, DepartmentName, Credits, CreditType, CurrentAmount, TotalAmount From 
@@ -509,11 +497,7 @@ def follow_course():
     else:
         global studentid
         studentid = session.get('studentid')
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+        if not verify_password(studentid, session.get('password')):
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     courseid = request.form.get('courseid')
@@ -536,11 +520,7 @@ def follow_list():
     else:
         global studentid
         studentid = session.get('studentid')
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+        if not verify_password(studentid, session.get('password')):
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     query = """Select Current.CourseID, CourseCode, CourseName, DepartmentName, Credits, CreditType, CurrentAmount, TotalAmount From 
@@ -567,11 +547,7 @@ def cancel_follow():
     else:
         global studentid
         studentid = session.get('studentid')
-        query = "Select IDPassword From UserID Where StudentID = '{}';".format(
-            studentid)
-        cursor.execute(query)
-        password_check = cursor.fetchone()
-        if not bcrypt.check_password_hash(session.get('password'), password_check[0]):
+        if not verify_password(studentid, session.get('password')):
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     courseid = request.form.get('courseid')
