@@ -136,6 +136,36 @@ def get_student_schedule(studentid, years, semester):
     return cursor.fetchall()
 
 
+def fetch_course_list(semester, years):
+    query = """Select Current.CourseID, CourseCode, CourseName, DepartmentName, Credits, CreditType, CurrentAmount, TotalAmount From 
+            (Select Courses.CourseID, Courses.CourseCode, Courses.CourseName, Courses.DepartmentName, Courses.Credits, Courses.CreditType, 
+            count(Distinct StudentID) As CurrentAmount From Courses Left Outer Join Takes On Courses.CourseID = Takes.CourseID 
+            Where Courses.Semester = {} And Courses.Years = {} Group By Courses.CourseID) As Current Inner Join 
+            (Select CourseID, Min(Capacity) As TotalAmount From Classrooms Inner Join Sections 
+            On Classrooms.Building = Sections.Building And Classrooms.RoomNo = Sections.RoomNo Group By CourseID) As Max 
+            On Current.CourseID = Max.CourseID;
+            """.format(semester, years)
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
+def fetch_follow_list(studentid, semester, years):
+    query = """Select Current.CourseID, CourseCode, CourseName, DepartmentName, Credits, CreditType, CurrentAmount, TotalAmount From 
+            (Select Courses.CourseID, Courses.CourseCode, Courses.CourseName, Courses.DepartmentName, 
+            Courses.Credits, Courses.CreditType, count(Distinct StudentID) As CurrentAmount From 
+            (Select Courses.CourseID, Courses.CourseCode, Courses.CourseName, Courses.DepartmentName, 
+            Courses.Credits, Courses.CreditType, Courses.Semester, Courses.Years
+            From Courses Inner Join Follows On Courses.CourseID = Follows.CourseID 
+            Where StudentID = '{}') As Courses Left Outer Join Takes On Courses.CourseID = Takes.CourseID 
+            Where Courses.Semester = {} And Courses.Years = {} Group By Courses.CourseID) As Current Inner Join 
+            (Select CourseID, Min(Capacity) As TotalAmount From Classrooms Inner Join Sections 
+            On Classrooms.Building = Sections.Building And Classrooms.RoomNo = Sections.RoomNo Group By CourseID) As Max 
+            On Current.CourseID = Max.CourseID;
+            """.format(studentid, semester, years)
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
 def fetch_followed_course(studentid, years, semester):
     query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
             FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
@@ -160,17 +190,17 @@ def fetch_selected_course(studentid, years, semester):
     return cursor.fetchall()
 
 
-def fetch_queue_list(courseid):
-    query = "Select StudentID From CourseQueue Where CourseID = '{}' Order By TimeQueue ASC;".format(courseid)
-    cursor.execute(query)
-    return cursor.fetchall()
-
-
 def fetch_selected_course_id(studentid, years, semester):
     query = """SELECT CourseID FROM Courses WHERE courseID IN 
             (SELECT DISTINCT courseid from takes 
             WHERE studentid = '{}' and semester={} and years={});
             """.format(studentid, semester, years)  # 根據學生所選的課找出有沒有選這堂課
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
+def fetch_queue_list(courseid):
+    query = "Select StudentID From CourseQueue Where CourseID = '{}' Order By TimeQueue ASC;".format(courseid)
     cursor.execute(query)
     return cursor.fetchall()
 
@@ -199,6 +229,12 @@ def is_course_selected(studentid, semester, years, courseid):
         if courseid == course:
             return True
     return False
+
+
+def is_course_followed(studentid, courseid):
+    query = "Select * From Follows Where StudentID = '{}' And CourseID = '{}';".format(studentid, courseid)
+    cursor.execute(query)
+    return cursor.fetchone() != None
 
 
 def is_course_required_course(courseid, studentid):
@@ -243,6 +279,12 @@ def add_to_queue(studentid, courseid):
         query = "Insert Into CourseQueue Values('{}','{}','{}');".format(studentid, courseid, datetime.now())
         cursor.execute(query)
         conn.commit()
+
+
+def follow_course(studentid, courseid):
+    query = "Insert Into Follows Values('{}','{}');".format(studentid, courseid)
+    cursor.execute(query)
+    conn.commit()
 
 
 def unfollow_course(studentid, courseid):
@@ -430,6 +472,7 @@ def drop():
             will_takes_exceed_credits_limit(queue_student_id, years, semester, courseid) or \
             is_course_schedule_conflict(queue_student_id, courseid, years, semester):
             continue
+
         # 最先符合規定的學生加選課程
         for timeSlotID in get_course_schedule(courseid, years, semester):
             take_course_section(queue_student_id, courseid, timeSlotID, semester, years)
@@ -449,16 +492,7 @@ def course_list():
         if not verify_password(studentid, session.get('password')):
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
-    query = """Select Current.CourseID, CourseCode, CourseName, DepartmentName, Credits, CreditType, CurrentAmount, TotalAmount From 
-            (Select Courses.CourseID, Courses.CourseCode, Courses.CourseName, Courses.DepartmentName, Courses.Credits, Courses.CreditType, 
-            count(Distinct StudentID) As CurrentAmount From Courses Left Outer Join Takes On Courses.CourseID = Takes.CourseID 
-            Where Courses.Semester = {} And Courses.Years = {} Group By Courses.CourseID) As Current Inner Join 
-            (Select CourseID, Min(Capacity) As TotalAmount From Classrooms Inner Join Sections 
-            On Classrooms.Building = Sections.Building And Classrooms.RoomNo = Sections.RoomNo Group By CourseID) As Max 
-            On Current.CourseID = Max.CourseID;
-            """.format(semester, years)
-    cursor.execute(query)
-    return render_template('List.html', course=cursor.fetchall())
+    return render_template('List.html', course=fetch_course_list(semester, years))
 
 
 # 關注課程
@@ -473,14 +507,8 @@ def follow_course():
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
     courseid = request.form.get('courseid')
-    query = "Select * From Follows Where StudentID = '{}' And CourseID = '{}';".format(
-        studentid, courseid)
-    cursor.execute(query)
-    if cursor.fetchone() == None:
-        query = "Insert Into Follows Values('{}','{}');".format(
-            studentid, courseid)
-        cursor.execute(query)
-        conn.commit()
+    if not is_course_followed(studentid, courseid):
+        follow_course(studentid, courseid)
     return render_template('ErrorMessage.html', status=(("課程已關注", "course_list", "返回"),), home=('home'))
 
 
@@ -495,20 +523,7 @@ def follow_list():
         if not verify_password(studentid, session.get('password')):
             return render_template('ErrorMessage.html', status=(("密碼錯誤!", "login", "重新登入"),))
 
-    query = """Select Current.CourseID, CourseCode, CourseName, DepartmentName, Credits, CreditType, CurrentAmount, TotalAmount From 
-            (Select Courses.CourseID, Courses.CourseCode, Courses.CourseName, Courses.DepartmentName, 
-            Courses.Credits, Courses.CreditType, count(Distinct StudentID) As CurrentAmount From 
-            (Select Courses.CourseID, Courses.CourseCode, Courses.CourseName, Courses.DepartmentName, 
-            Courses.Credits, Courses.CreditType, Courses.Semester, Courses.Years
-            From Courses Inner Join Follows On Courses.CourseID = Follows.CourseID 
-            Where StudentID = '{}') As Courses Left Outer Join Takes On Courses.CourseID = Takes.CourseID 
-            Where Courses.Semester = {} And Courses.Years = {} Group By Courses.CourseID) As Current Inner Join 
-            (Select CourseID, Min(Capacity) As TotalAmount From Classrooms Inner Join Sections 
-            On Classrooms.Building = Sections.Building And Classrooms.RoomNo = Sections.RoomNo Group By CourseID) As Max 
-            On Current.CourseID = Max.CourseID;
-            """.format(studentid, semester, years)
-    cursor.execute(query)
-    return render_template('Follow.html', course=cursor.fetchall())
+    return render_template('Follow.html', course=fetch_follow_list(studentid, semester, years))
 
 
 # 取消關注
