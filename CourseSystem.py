@@ -18,53 +18,17 @@ semester = 2
 studentid = None
 
 
+# 判斷功能
 def verify_is_new_semester(semester, years):
     query = "Select * From Takes Where Semester = {} And Years = {};".format(
         semester, years)
     cursor.execute(query)
     return not cursor.fetchall()
 
-
-def fetch_student_list(semester, years):
-    query = """Select StudentID, DepartmentName, ClassNo , students_year
-            From Students Where Semester = {} And Years = {};
-            """.format(semester, years)
-    cursor.execute(query)
-    return cursor.fetchall()
-
-
-def get_student_required_courses(departmentName, studentYear, classNo, years, semester):
-    query = """SELECT CourseID,TimeSlotID FROM Sections
-            WHERE CourseID In (Select CourseID From Courses 
-            Where DepartmentName = '{}' And course_years = {} And course_classNo = '{}' 
-            And CreditType = '必修') And years= {} And semester= {}
-            """.format(departmentName, studentYear, classNo, years, semester)
-    cursor.execute(query)
-    return cursor.fetchall()
-
-
-def take_course_section(studentID, courseID, timeSlotID, semester, years, required=False):
-    creditTypeCol = ",CreditType" if required else ""
-    creditType = ",'必修'" if required else ""
-    insert_query = """insert into Takes(StudentID,CourseID,TimeSlotID,Semester,Years{})
-                    values('{}','{}','{}',{},{}{});
-                    """.format(creditTypeCol, studentID, courseID, timeSlotID, semester, years, creditType)
-    cursor.execute(insert_query)
-    conn.commit()
-
-
-def drop_course(studentid, courseid, semester, years):
-    delete_query = """delete from Takes where studentid='{}' and courseid='{}' and semester={} and years={};
-                    """.format(studentid, courseid, semester, years)
-    cursor.execute(delete_query)
-    conn.commit()
-
-
 def verify_student(studentid):
     query = "Select StudentID From UserID Where StudentID = '{}';".format(studentid)
     cursor.execute(query)
     return cursor.fetchone() != None
-
 
 def verify_password(studentid, password):
     query = "Select IDPassword From UserID Where StudentID = '{}';".format(studentid)
@@ -72,69 +36,73 @@ def verify_password(studentid, password):
     password_check = cursor.fetchone()
     return bcrypt.check_password_hash(password, password_check[0])
 
+def is_course_exist(courseid):
+    CourseID_query = "SELECT CourseID FROM Courses WHERE CourseID = '{}';".format(courseid)
+    cursor.execute(CourseID_query)
+    return cursor.fetchone() != None
 
-def get_total_selected_credits(studentid, years, semester):
-    query = """SELECT SUM(Credits) FROM Courses WHERE CourseID in 
-            (SELECT DISTINCT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={});
-            """.format(studentid, years, semester)  # 抓取那個學生有修什麼課再加總
+def is_course_selected(studentid, semester, years, courseid):
+    for course in fetch_selected_course_id(studentid, years, semester):
+        if courseid == course:
+            return True
+    return False
+
+def is_course_followed(studentid, courseid):
+    query = "Select * From Follows Where StudentID = '{}' And CourseID = '{}';".format(studentid, courseid)
     cursor.execute(query)
-    result = cursor.fetchone()
+    return cursor.fetchone() != None
 
-    if result[0] == None:  # 如果完全沒有修會抓取的總值是NONE，要把它設為0
-        return 0
-
-    return int(result[0]) # 抓取的值設給total_credits
-
-
-def get_student_name(studentid):
-    query = "SELECT StudentName From Students Where StudentID = '{}';".format(studentid)  # 根據學號抓取學生名字
+def is_course_duplicate(studentid, courseid):
+    query = """SELECT Coursename FROM Courses WHERE coursename IN 
+            (SELECT DISTINCT coursename from takes INNER JOIN Courses 
+            on takes.courseid = courses.courseid WHERE studentid = '{}')
+            """.format(studentid)
     cursor.execute(query)
-    result = cursor.fetchone()
-    return result[0]
+    for course in cursor.fetchall():
+        # 檢查是否已選同名課程
+        if get_course_name(courseid) == course:
+            return True
+    return False
 
-
-def get_course_name(courseid):
-    query = "SELECT CourseName FROM Courses WHERE courseid = '{}'".format(courseid)
+def is_course_required_course(courseid, studentid):
+    query = "SELECT CreditType from takes where courseid='{}' and studentid='{}';".format(courseid, studentid)
     cursor.execute(query)
-    return cursor.fetchone()
+    drop_credit_type = cursor.fetchone()
+    return drop_credit_type[0] == "必修"
 
+def is_course_schedule_conflict(studentid, courseid, years, semester):
+    for schedule_timeslot in get_student_schedule(studentid, years, semester):
+        for course_timeslot in get_course_schedule(courseid, years, semester):
+            if schedule_timeslot == course_timeslot:
+                return True
+    return False
 
-def get_course_credits(courseid):
-    query = "SELECT Credits FROM Courses WHERE CourseID = '{}';".format(courseid)
+def is_course_full(courseid, years, semester):
+    max_quota = get_course_max_quota(courseid, years, semester)
+    current_takes = get_course_current_takes(courseid, years, semester)
+    return current_takes >= max_quota
+
+def is_not_in_queue(studentid, courseid):
+    query = "Select * From CourseQueue Where StudentID = '{}' And CourseID = '{}';".format(studentid, courseid)
     cursor.execute(query)
-    result = cursor.fetchone()
-    return result[0]
+    return cursor.fetchone() == None
+
+def will_takes_exceed_credits_limit(studentid, years, semester, courseid):
+    current_total_credits = get_total_selected_credits(studentid, years, semester)
+    return current_total_credits + get_course_credits(courseid) > 30
+
+def will_drops_lack_credits_limit(studentid, years, semester, courseid):
+    current_total_credits = get_total_selected_credits(studentid, years, semester)
+    return current_total_credits - get_course_credits(courseid) < 9
 
 
-def get_course_schedule(courseid, years, semester):
-    query = "SELECT TimeSlotID FROM Sections WHERE CourseID = '{}' and years={} and semester={}".format(courseid, years, semester)
+# 資料存取
+def fetch_student_list(semester, years):
+    query = """Select StudentID, DepartmentName, ClassNo , students_year
+            From Students Where Semester = {} And Years = {};
+            """.format(semester, years)
     cursor.execute(query)
     return cursor.fetchall()
-
-
-def get_course_max_quota(courseid, years, semester):
-    query = """SELECT MIN(Capacity) 
-            FROM classrooms INNER JOIN sections ON 
-            classrooms.Building = sections.Building AND classrooms.RoomNo = sections.RoomNo 
-            WHERE courseid = '{}' and years={} and semester={};
-            """.format(courseid, years, semester)
-    cursor.execute(query)
-    return cursor.fetchone()
-
-
-def get_course_current_takes(courseid, years, semester):
-    query = """SELECT COUNT(DISTINCT StudentID) 
-            FROM takes WHERE CourseID = '{}' and years={} and semester={};
-            """.format(courseid, years, semester)
-    cursor.execute(query)
-    return cursor.fetchone()
-
-
-def get_student_schedule(studentid, years, semester):
-    query = "SELECT TimeSlotID from takes WHERE studentid = '{}' and years={} and semester={}".format(studentid, years, semester)
-    cursor.execute(query)
-    return cursor.fetchall()
-
 
 def fetch_course_list(semester, years):
     query = """Select Current.CourseID, CourseCode, CourseName, DepartmentName, Credits, CreditType, CurrentAmount, TotalAmount From 
@@ -148,6 +116,24 @@ def fetch_course_list(semester, years):
     cursor.execute(query)
     return cursor.fetchall()
 
+def fetch_selected_course(studentid, years, semester):
+    query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
+            FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
+            From Sections Inner Join Courses On Sections.CourseID = Courses.CourseID) As Sections 
+            Inner Join TimeSlot On Sections.TimeSlotID = TimeSlot.TimeSlotID WHERE courseid in 
+            (SELECT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={})
+            and years={} and semester={} Order By Sections.TimeSlotID ASC;
+            """.format(studentid, years, semester, years, semester)  # 合伴section and course,再結合該學生的takes,再抓出該學生修的課
+    cursor.execute(query)
+    return cursor.fetchall()
+
+def fetch_selected_course_id(studentid, years, semester):
+    query = """SELECT CourseID FROM Courses WHERE courseID IN 
+            (SELECT DISTINCT courseid from takes 
+            WHERE studentid = '{}' and semester={} and years={});
+            """.format(studentid, semester, years)  # 根據學生所選的課找出有沒有選這堂課
+    cursor.execute(query)
+    return cursor.fetchall()
 
 def fetch_follow_list(studentid, semester, years):
     query = """Select Current.CourseID, CourseCode, CourseName, DepartmentName, Credits, CreditType, CurrentAmount, TotalAmount From 
@@ -165,7 +151,6 @@ def fetch_follow_list(studentid, semester, years):
     cursor.execute(query)
     return cursor.fetchall()
 
-
 def fetch_followed_course(studentid, years, semester):
     query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
             FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
@@ -177,102 +162,88 @@ def fetch_followed_course(studentid, years, semester):
     cursor.execute(query)
     return cursor.fetchall()
 
-
-def fetch_selected_course(studentid, years, semester):
-    query = """SELECT CourseID,CourseName,Sections.TimeSlotID,Building,RoomNo 
-            FROM (Select Sections.CourseID,CourseName,TimeSlotID,Building,RoomNo,Sections.Semester,Sections.Years 
-            From Sections Inner Join Courses On Sections.CourseID = Courses.CourseID) As Sections 
-            Inner Join TimeSlot On Sections.TimeSlotID = TimeSlot.TimeSlotID WHERE courseid in 
-            (SELECT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={})
-            and years={} and semester={} Order By Sections.TimeSlotID ASC;
-            """.format(studentid, years, semester, years, semester)  # 合伴section and course,再結合該學生的takes,再抓出該學生修的課
-    cursor.execute(query)
-    return cursor.fetchall()
-
-
-def fetch_selected_course_id(studentid, years, semester):
-    query = """SELECT CourseID FROM Courses WHERE courseID IN 
-            (SELECT DISTINCT courseid from takes 
-            WHERE studentid = '{}' and semester={} and years={});
-            """.format(studentid, semester, years)  # 根據學生所選的課找出有沒有選這堂課
-    cursor.execute(query)
-    return cursor.fetchall()
-
-
 def fetch_queue_list(courseid):
     query = "Select StudentID From CourseQueue Where CourseID = '{}' Order By TimeQueue ASC;".format(courseid)
     cursor.execute(query)
     return cursor.fetchall()
 
-
-def is_course_exist(courseid):
-    CourseID_query = "SELECT CourseID FROM Courses WHERE CourseID = '{}';".format(courseid)
-    cursor.execute(CourseID_query)
-    return cursor.fetchone() != None
-
-
-def is_course_duplicate(studentid, courseid):
-    query = """SELECT Coursename FROM Courses WHERE coursename IN 
-            (SELECT DISTINCT coursename from takes INNER JOIN Courses 
-            on takes.courseid = courses.courseid WHERE studentid = '{}')
-            """.format(studentid)
+def get_course_name(courseid):
+    query = "SELECT CourseName FROM Courses WHERE courseid = '{}'".format(courseid)
     cursor.execute(query)
-    for course in cursor.fetchall():
-        # 檢查是否已選同名課程
-        if get_course_name(courseid) == course:
-            return True
-    return False
+    return cursor.fetchone()
 
-
-def is_course_selected(studentid, semester, years, courseid):
-    for course in fetch_selected_course_id(studentid, years, semester):
-        if courseid == course:
-            return True
-    return False
-
-
-def is_course_followed(studentid, courseid):
-    query = "Select * From Follows Where StudentID = '{}' And CourseID = '{}';".format(studentid, courseid)
+def get_course_credits(courseid):
+    query = "SELECT Credits FROM Courses WHERE CourseID = '{}';".format(courseid)
     cursor.execute(query)
-    return cursor.fetchone() != None
+    result = cursor.fetchone()
+    return result[0]
 
-
-def is_course_required_course(courseid, studentid):
-    query = "SELECT CreditType from takes where courseid='{}' and studentid='{}';".format(courseid, studentid)
+def get_course_schedule(courseid, years, semester):
+    query = "SELECT TimeSlotID FROM Sections WHERE CourseID = '{}' and years={} and semester={}".format(courseid, years, semester)
     cursor.execute(query)
-    drop_credit_type = cursor.fetchone()
-    return drop_credit_type[0] == "必修"
+    return cursor.fetchall()
 
-
-def will_takes_exceed_credits_limit(studentid, years, semester, courseid):
-    current_total_credits = get_total_selected_credits(studentid, years, semester)
-    return current_total_credits + get_course_credits(courseid) > 30
-
-
-def will_drops_lack_credits_limit(studentid, years, semester, courseid):
-    current_total_credits = get_total_selected_credits(studentid, years, semester)
-    return current_total_credits - get_course_credits(courseid) < 9
-
-
-def is_course_schedule_conflict(studentid, courseid, years, semester):
-    for schedule_timeslot in get_student_schedule(studentid, years, semester):
-        for course_timeslot in get_course_schedule(courseid, years, semester):
-            if schedule_timeslot == course_timeslot:
-                return True
-    return False
-
-
-def is_course_full(courseid, years, semester):
-    max_quota = get_course_max_quota(courseid, years, semester)
-    current_takes = get_course_current_takes(courseid, years, semester)
-    return current_takes >= max_quota
-
-
-def is_not_in_queue(studentid, courseid):
-    query = "Select * From CourseQueue Where StudentID = '{}' And CourseID = '{}';".format(studentid, courseid)
+def get_course_max_quota(courseid, years, semester):
+    query = """SELECT MIN(Capacity) 
+            FROM classrooms INNER JOIN sections ON 
+            classrooms.Building = sections.Building AND classrooms.RoomNo = sections.RoomNo 
+            WHERE courseid = '{}' and years={} and semester={};
+            """.format(courseid, years, semester)
     cursor.execute(query)
-    return cursor.fetchone() == None
+    return cursor.fetchone()
 
+def get_course_current_takes(courseid, years, semester):
+    query = """SELECT COUNT(DISTINCT StudentID) 
+            FROM takes WHERE CourseID = '{}' and years={} and semester={};
+            """.format(courseid, years, semester)
+    cursor.execute(query)
+    return cursor.fetchone()
+
+def get_student_name(studentid):
+    query = "SELECT StudentName From Students Where StudentID = '{}';".format(studentid)  # 根據學號抓取學生名字
+    cursor.execute(query)
+    result = cursor.fetchone()
+    return result[0]
+
+def get_student_schedule(studentid, years, semester):
+    query = "SELECT TimeSlotID from takes WHERE studentid = '{}' and years={} and semester={}".format(studentid, years, semester)
+    cursor.execute(query)
+    return cursor.fetchall()
+
+def get_student_required_courses(departmentName, studentYear, classNo, years, semester):
+    query = """SELECT CourseID,TimeSlotID FROM Sections
+            WHERE CourseID In (Select CourseID From Courses 
+            Where DepartmentName = '{}' And course_years = {} And course_classNo = '{}' 
+            And CreditType = '必修') And years= {} And semester= {}
+            """.format(departmentName, studentYear, classNo, years, semester)
+    cursor.execute(query)
+    return cursor.fetchall()
+
+def get_total_selected_credits(studentid, years, semester):
+    query = """SELECT SUM(Credits) FROM Courses WHERE CourseID in 
+            (SELECT DISTINCT CourseID FROM Takes WHERE StudentID = '{}' and years={} and semester={});
+            """.format(studentid, years, semester)  # 抓取那個學生有修什麼課再加總
+    cursor.execute(query)
+    result = cursor.fetchone()
+
+    return int(result[0]) if result[0] != None else 0 # 抓取的值設給total_credits
+
+
+# 課程註冊操作
+def take_course_section(studentID, courseID, timeSlotID, semester, years, required=False):
+    creditTypeCol = ",CreditType" if required else ""
+    creditType = ",'必修'" if required else ""
+    insert_query = """insert into Takes(StudentID,CourseID,TimeSlotID,Semester,Years{})
+                    values('{}','{}','{}',{},{}{});
+                    """.format(creditTypeCol, studentID, courseID, timeSlotID, semester, years, creditType)
+    cursor.execute(insert_query)
+    conn.commit()
+
+def drop_course(studentid, courseid, semester, years):
+    delete_query = """delete from Takes where studentid='{}' and courseid='{}' and semester={} and years={};
+                    """.format(studentid, courseid, semester, years)
+    cursor.execute(delete_query)
+    conn.commit()
 
 def add_to_queue(studentid, courseid):
     if is_not_in_queue(studentid, courseid):
@@ -280,12 +251,10 @@ def add_to_queue(studentid, courseid):
         cursor.execute(query)
         conn.commit()
 
-
 def follow_course(studentid, courseid):
     query = "Insert Into Follows Values('{}','{}');".format(studentid, courseid)
     cursor.execute(query)
     conn.commit()
-
 
 def unfollow_course(studentid, courseid):
     query = "Delete From Follows Where StudentID = '{}' And CourseID = '{}';".format(studentid, courseid)
