@@ -262,6 +262,23 @@ def unfollow_course(studentid, courseid):
     conn.commit()
 
 
+# 
+def take_course_in_queue(courseid, years, semester):
+    for queue_student in fetch_queue_list(courseid):
+        queue_student_id = queue_student[0]
+
+        # 檢查是否已選同名課程
+        if is_course_duplicate(queue_student_id, courseid) or \
+            will_takes_exceed_credits_limit(queue_student_id, years, semester, courseid) or \
+            is_course_schedule_conflict(queue_student_id, courseid, years, semester):
+            continue
+
+        # 最先符合規定的學生加選課程
+        for timeSlotID in get_course_schedule(courseid, years, semester):
+            take_course_section(queue_student_id, courseid, timeSlotID, semester, years)
+        break
+
+
 # 預選必修
 def preselect_required_courses():
     if verify_is_new_semester(semester, years):
@@ -433,19 +450,7 @@ def drop():
     drop_course(studentid, courseid, semester, years)
 
     # 依照預選此課的排隊列表（按時間順序）
-    for queue_student in fetch_queue_list(courseid):
-        queue_student_id = queue_student[0]
-
-        # 檢查是否已選同名課程
-        if is_course_duplicate(queue_student_id, courseid) or \
-            will_takes_exceed_credits_limit(queue_student_id, years, semester, courseid) or \
-            is_course_schedule_conflict(queue_student_id, courseid, years, semester):
-            continue
-
-        # 最先符合規定的學生加選課程
-        for timeSlotID in get_course_schedule(courseid, years, semester):
-            take_course_section(queue_student_id, courseid, timeSlotID, semester, years)
-        break
+    take_course_in_queue(courseid, years, semester)
 
     return render_template('ErrorMessage.html', status=(("退選成功", "home", "返回"),))
 
